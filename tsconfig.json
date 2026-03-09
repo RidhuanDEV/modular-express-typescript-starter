@@ -1,0 +1,39 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+
+    "rootDir": "./src",
+    "outDir": "./dist",
+
+    "lib": ["ES2023"],
+    "types": ["node"],
+
+    "sourceMap": true,
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "moduleDetection": "force",
+
+    "resolveJsonModule": true,
+
+    "skipLibCheck": true,
+
+    "baseUrl": "./src",
+    "paths": {
+      "@modules/*": ["modules/*"],
+      "@core/*": ["core/*"],
+      "@config/*": ["config/*"],
+      "@database/*": ["database/*"],
+      "@shared/*": ["shared/*"]
+    }
+  },
+
+  "include": ["src"],
+  "exclude": ["node_modules", "dist"]
+}
