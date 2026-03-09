@@ -113,10 +113,13 @@ src/modules/<feature>/
    ```
 
 ### Docker Setup
+```bash
+   cp .env.example .env
+   ```
 
 ```bash
-docker compose up --build
-```
+   docker compose up --build
+   ```
 
 This will spin up the application, MySQL 8, and Redis 7 automatically.
 

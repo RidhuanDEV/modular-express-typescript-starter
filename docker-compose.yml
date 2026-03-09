@@ -1,43 +1,31 @@
 services:
   app:
     build: .
+    container_name: myapp_backend
     ports:
       - "${PORT:-3000}:3000"
-    env_file: .env
+    env_file:
+      - .env
     depends_on:
-      mysql:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      - mysql
+      - redis
     restart: unless-stopped
 
   mysql:
-    image: mysql:8
-    environment:
-      MYSQL_ROOT_PASSWORD: password
-      MYSQL_DATABASE: myapp
+    image: mysql:8.4
+    container_name: myapp_mysql
+    env_file:
+      - .env
     ports:
       - "3306:3306"
     volumes:
-      - mysql_data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      - ./.docker/mysql_data:/var/lib/mysql
+    command: --default-authentication-plugin=mysql_native_password
 
   redis:
-    image: redis:7-alpine
+    image: redis:7.4-alpine
+    container_name: myapp_redis
     ports:
       - "6379:6379"
     volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-volumes:
-  mysql_data:
-  redis_data:
+      - ./.docker/redis_data:/data
