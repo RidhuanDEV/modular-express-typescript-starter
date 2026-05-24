@@ -1,50 +1,41 @@
 import type { Request, Response, NextFunction } from "express";
-import { z } from "zod";
+import { ZodError, type ZodType } from "zod";
 import { HttpError } from "../errors/http-error.js";
 
 interface ValidationSchemas {
-  body?: z.ZodType;
-  query?: z.ZodType;
-  params?: z.ZodType;
+  body?: ZodType;
+  query?: ZodType;
+  params?: ZodType;
 }
 
 export function validate(schemas: ValidationSchemas) {
-  return (req: Request, _res: Response, next: NextFunction): void => {
-    const errors: unknown[] = [];
+  return async (
+    req: Request,
+    _res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
+    try {
+      if (schemas.body) {
+        req.body = await schemas.body.parseAsync(req.body);
+      }
 
-    if (schemas.body) {
-      const result = schemas.body.safeParse(req.body);
-      if (!result.success) {
-        errors.push(...result.error.issues);
+      if (schemas.query) {
+        const parsed = await schemas.query.parseAsync(req.query);
+        Object.assign(req.query, parsed);
+      }
+
+      if (schemas.params) {
+        const parsed = await schemas.params.parseAsync(req.params);
+        Object.assign(req.params, parsed);
+      }
+
+      next();
+    } catch (err: unknown) {
+      if (err instanceof ZodError) {
+        next(HttpError.badRequest("Validation failed", err.issues));
       } else {
-        req.body = result.data;
+        next(err);
       }
     }
-
-    if (schemas.query) {
-      const result = schemas.query.safeParse(req.query);
-      if (!result.success) {
-        errors.push(...result.error.issues);
-      } else {
-        // Assign coerced/parsed values back so the controller can safely cast
-        // req.query to the expected DTO type without re-parsing.
-        (req as unknown as { query: Record<string, unknown> }).query =
-          result.data as Record<string, unknown>;
-      }
-    }
-
-    if (schemas.params) {
-      const result = schemas.params.safeParse(req.params);
-      if (!result.success) {
-        errors.push(...result.error.issues);
-      }
-    }
-
-    if (errors.length > 0) {
-      next(HttpError.badRequest("Validation failed", errors));
-      return;
-    }
-
-    next();
   };
 }

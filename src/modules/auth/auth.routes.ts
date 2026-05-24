@@ -38,7 +38,7 @@ const controller = new AuthController();
 router.post(
   "/register",
   validate({ body: registerSchema }),
-  controller.register.bind(controller),
+  controller.register,
 );
 
 /**
@@ -83,7 +83,7 @@ router.post(
 router.post(
   "/login",
   validate({ body: loginSchema }),
-  controller.login.bind(controller),
+  controller.login,
 );
 
 /**
@@ -100,7 +100,7 @@ router.post(
  *       401:
  *         description: Unauthorized
  */
-router.get("/me", authenticate, controller.me.bind(controller));
+router.get("/me", authenticate, controller.me);
 
 export const path = "/auth";
 export default router;

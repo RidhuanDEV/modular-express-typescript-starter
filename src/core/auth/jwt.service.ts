@@ -7,5 +7,27 @@ export function signToken(payload: JwtUserPayload): string {
 }
 
 export function verifyToken(token: string): JwtUserPayload {
-  return jwt.verify(token, env.JWT_SECRET) as JwtUserPayload;
+  const decoded = jwt.verify(token, env.JWT_SECRET);
+  
+  if (
+    decoded &&
+    typeof decoded === "object" &&
+    "id" in decoded &&
+    "email" in decoded &&
+    "roleId" in decoded
+  ) {
+    if (
+      typeof decoded.id === "string" &&
+      typeof decoded.email === "string" &&
+      typeof decoded.roleId === "string"
+    ) {
+      return {
+        id: decoded.id,
+        email: decoded.email,
+        roleId: decoded.roleId,
+      };
+    }
+  }
+  
+  throw new Error("Invalid token payload structure");
 }

@@ -1,66 +1,36 @@
-import path from "node:path";
-import { readdirSync } from "node:fs";
-import { fileURLToPath, pathToFileURL } from "node:url";
-import type { Express, Router } from "express";
+import type { Express } from "express";
 import { logger } from "../core/logger/logger.js";
-
-const isTs = import.meta.url.endsWith(".ts");
-const ext = isTs ? ".routes.ts" : ".routes.js";
+import authRouter, { path as authPath } from "../modules/auth/auth.routes.js";
+import userRouter, { path as userPath } from "../modules/user/user.routes.js";
+import roleRouter, { path as rolePath } from "../modules/roles/role.routes.js";
+import permissionRouter, { path as permissionPath } from "../modules/permissions/permission.routes.js";
 
 export async function loadRoutes(app: Express): Promise<void> {
-  const modulesDir = path.resolve(
-    path.dirname(fileURLToPath(import.meta.url)),
-    "../modules",
-  );
+  app.use(`/api${authPath}`, authRouter);
+  app.use(`/api${userPath}`, userRouter);
+  app.use(`/api${rolePath}`, roleRouter);
+  app.use(`/api${permissionPath}`, permissionRouter);
 
-  let entries: string[];
-  try {
-    entries = readdirSync(modulesDir);
-  } catch {
-    logger.warn("No modules directory found — skipping route loading");
-    return;
-  }
-
-  for (const entry of entries) {
-    const moduleDir = path.join(modulesDir, entry);
-    let files: string[];
-    try {
-      files = readdirSync(moduleDir);
-    } catch {
-      continue;
-    }
-
-    for (const file of files) {
-      if (file.endsWith(ext)) {
-        const filePath = pathToFileURL(path.join(moduleDir, file)).href;
-        const mod = (await import(filePath)) as {
-          default: Router;
-          path: string;
-        };
-
-        const routePath = `/api${mod.path}`;
-        app.use(routePath, mod.default);
-
-        // Log semua endpoint di router
-        if (mod.default && typeof mod.default.stack === "object") {
-          for (const layer of mod.default.stack) {
-            if (layer.route) {
-              // Ambil method dari stack
-              const method =
-                layer.route.stack &&
-                layer.route.stack[0] &&
-                layer.route.stack[0].method
-                  ? layer.route.stack[0].method.toUpperCase()
-                  : "UNKNOWN";
-              const panjangroute = routePath.length + layer.route.path.length;
-              const garis = "=".repeat(30 - panjangroute);
-              logger.info(
-                `Loaded Endpoint: ${routePath}${layer.route.path} ${garis} Method: ${method}`,
-              );
-            }
-          }
-        }
-      }
-    }
-  }
+  logger.info(`Loaded Endpoint: /api${authPath}/register ============ Method: POST`);
+  logger.info(`Loaded Endpoint: /api${authPath}/login =============== Method: POST`);
+  logger.info(`Loaded Endpoint: /api${authPath}/me ================== Method: GET`);
+  
+  logger.info(`Loaded Endpoint: /api${userPath}/ =================== Method: GET`);
+  logger.info(`Loaded Endpoint: /api${userPath}/:id ================ Method: GET`);
+  logger.info(`Loaded Endpoint: /api${userPath}/ =================== Method: POST`);
+  logger.info(`Loaded Endpoint: /api${userPath}/:id ================ Method: PATCH`);
+  logger.info(`Loaded Endpoint: /api${userPath}/:id ================ Method: DELETE`);
+  
+  logger.info(`Loaded Endpoint: /api${rolePath}/ =================== Method: GET`);
+  logger.info(`Loaded Endpoint: /api${rolePath}/:id ================ Method: GET`);
+  logger.info(`Loaded Endpoint: /api${rolePath}/ =================== Method: POST`);
+  logger.info(`Loaded Endpoint: /api${rolePath}/:id ================ Method: PUT`);
+  logger.info(`Loaded Endpoint: /api${rolePath}/:id ================ Method: DELETE`);
+  logger.info(`Loaded Endpoint: /api${rolePath}/:id/permissions ==== Method: PUT`);
+  
+  logger.info(`Loaded Endpoint: /api${permissionPath}/ ============= Method: GET`);
+  logger.info(`Loaded Endpoint: /api${permissionPath}/:id ========== Method: GET`);
+  logger.info(`Loaded Endpoint: /api${permissionPath}/ ============= Method: POST`);
+  logger.info(`Loaded Endpoint: /api${permissionPath}/:id ========== Method: PUT`);
+  logger.info(`Loaded Endpoint: /api${permissionPath}/:id ========== Method: DELETE`);
 }

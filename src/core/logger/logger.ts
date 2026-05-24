@@ -11,7 +11,12 @@ const options: LoggerOptions = {
   timestamp: pino.stdTimeFunctions.isoTime,
 };
 
-if (env.NODE_ENV !== "production") {
+let usePretty = env.NODE_ENV !== "production";
+if (process.env.IS_DOCKER === "true") {
+  usePretty = false;
+}
+
+if (usePretty) {
   options.transport = { target: "pino-pretty", options: { colorize: true } };
 }
 

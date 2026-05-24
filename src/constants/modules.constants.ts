@@ -3,11 +3,13 @@ export const MODULES = {
   USER: "user",
   ROLE: "role",
   PERMISSION: "permission",
+  PRODUCT: "product",
 } as const;
 
-export type ModuleName = (typeof MODULES)[keyof typeof MODULES];
+export type ModuleName = typeof MODULES[keyof typeof MODULES];
 
 export const AUTH_MODULE = MODULES.AUTH;
 export const USER_MODULE = MODULES.USER;
 export const ROLE_MODULE = MODULES.ROLE;
 export const PERMISSION_MODULE = MODULES.PERMISSION;
+export const PRODUCT_MODULE = MODULES.PRODUCT;

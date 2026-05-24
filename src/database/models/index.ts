@@ -1,57 +1,49 @@
-import path from "node:path";
-import { readdirSync } from "node:fs";
-import { fileURLToPath, pathToFileURL } from "node:url";
-import { sequelize } from "../../config/database.js";
 import { logger } from "../../core/logger/logger.js";
-import { setupAssociations } from "./associations.js";
-import { initModel as initAuditLog } from "../../core/audit/audit-log.model.js";
+import { Role, initModel as initRole } from "../../modules/roles/role.model.js";
+import { Permission, initModel as initPermission } from "../../modules/permissions/permission.model.js";
+import { RolePermission, initModel as initRolePermission } from "../../modules/roles/role-permission.model.js";
+import { User, initModel as initUser } from "../../modules/user/user.model.js";
+import { AuditLog, initModel as initAuditLog } from "../../core/audit/audit-log.model.js";
+import type { Sequelize } from "sequelize";
 
-const isTs = import.meta.url.endsWith(".ts");
-const ext = isTs ? ".model.ts" : ".model.js";
-
-export async function loadModels(): Promise<void> {
-  const modulesDir = path.resolve(
-    path.dirname(fileURLToPath(import.meta.url)),
-    "../../modules",
-  );
-
-  let entries: string[];
-  try {
-    entries = readdirSync(modulesDir);
-  } catch {
-    logger.warn("No modules directory found — skipping model loading");
-    return;
-  }
-
-  for (const entry of entries) {
-    const moduleDir = path.join(modulesDir, entry);
-    let files: string[];
-    try {
-      files = readdirSync(moduleDir);
-    } catch {
-      continue;
-    }
-
-    for (const file of files) {
-      if (file.endsWith(ext)) {
-        const filePath = pathToFileURL(path.join(moduleDir, file)).href;
-        const mod = (await import(filePath)) as {
-          initModel?: (seq: typeof sequelize) => void;
-        };
-        if (typeof mod.initModel === "function") {
-          mod.initModel(sequelize);
-          logger.info(`Loaded Model: ${file}`);
-        }
-      }
-    }
-  }
-
-  setupAssociations();
-  logger.info("Model associations configured");
-
-  // Core infrastructure models (not in the modules directory)
+export async function loadModels(sequelize: Sequelize): Promise<void> {
+  // Initialize models with the Sequelize instance
+  initRole(sequelize);
+  initPermission(sequelize);
+  initRolePermission(sequelize);
+  initUser(sequelize);
   initAuditLog(sequelize);
-  logger.info(`Loaded Model: audit-log.model.ts`);
-}
 
-export { sequelize };
+  const models = [Role, Permission, RolePermission, User, AuditLog];
+
+  for (const model of models) {
+    logger.info(`Loaded Model: ${model.name.toLowerCase()}.model.ts`);
+  }
+
+  // Configure Associations
+  Role.belongsToMany(Permission, {
+    through: RolePermission,
+    foreignKey: "roleId",
+    otherKey: "permissionId",
+    as: "permissions",
+  });
+
+  Permission.belongsToMany(Role, {
+    through: RolePermission,
+    foreignKey: "permissionId",
+    otherKey: "roleId",
+    as: "roles",
+  });
+
+  User.belongsTo(Role, {
+    foreignKey: "roleId",
+    as: "role",
+  });
+
+  Role.hasMany(User, {
+    foreignKey: "roleId",
+    as: "users",
+  });
+
+  logger.info("Model associations configured");
+}

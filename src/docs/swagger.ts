@@ -1,6 +1,6 @@
 import swaggerJsDoc from "swagger-jsdoc";
 import swaggerUi from "swagger-ui-express";
-import type { Express } from "express";
+import type { Express, RequestHandler } from "express";
 
 const options: swaggerJsDoc.Options = {
   definition: {
@@ -27,10 +27,13 @@ const options: swaggerJsDoc.Options = {
 export function setupSwagger(app: Express): void {
   const spec = swaggerJsDoc(options);
 
+  const serveHandler: RequestHandler[] = swaggerUi.serve;
+  const setupHandler: RequestHandler = swaggerUi.setup(spec);
+
   app.use(
     "/docs",
-    swaggerUi.serve as unknown as Express,
-    swaggerUi.setup(spec) as unknown as Express,
+    ...serveHandler,
+    setupHandler,
   );
 
   app.get("/docs.json", (_req, res) => {

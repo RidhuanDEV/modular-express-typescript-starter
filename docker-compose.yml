@@ -6,6 +6,10 @@ services:
       - "${PORT:-3000}:3000"
     env_file:
       - .env
+    environment:
+      - DATABASE_URL=mysql://root:password@mysql:3306/myapp
+      - REDIS_URL=redis://redis:6379
+      - IS_DOCKER=true
     depends_on:
       - mysql
       - redis
@@ -17,10 +21,9 @@ services:
     env_file:
       - .env
     ports:
-      - "3306:3306"
+      - "3308:3306"
     volumes:
       - ./.docker/mysql_data:/var/lib/mysql
-    command: --default-authentication-plugin=mysql_native_password
 
   redis:
     image: redis:7.4-alpine

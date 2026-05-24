@@ -8,14 +8,15 @@ import { AuditAction } from "../../constants/audit.constants.js";
 import { AUTH_MODULE, USER_MODULE } from "../../constants/modules.constants.js";
 import type { RegisterDto, LoginDto } from "./auth.schema.js";
 import type { User } from "../user/user.model.js";
+import type { InferAttributes } from "sequelize";
 
 const SALT_ROUNDS = 12;
 const DEFAULT_ROLE = "user";
 const repository = new AuthRepository();
 
-function safeUser(user: User): Omit<User["dataValues"], "password"> {
-  const { password: _password, ...safe } =
-    user.toJSON() as User["dataValues"] & { password: string };
+function safeUser(user: User): Omit<InferAttributes<User>, "password"> {
+  const data = user.get();
+  const { password: _password, ...safe } = data;
   return safe;
 }
 

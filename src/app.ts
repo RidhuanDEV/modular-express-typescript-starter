@@ -3,6 +3,7 @@ import helmet from "helmet";
 import cors from "cors";
 import { configureZodLocale } from "./core/validation/zod-error-map.js";
 import { requestIdMiddleware } from "./core/middleware/request-id.middleware.js";
+import { accessLogMiddleware } from "./core/middleware/access-log.middleware.js";
 import { rateLimitMiddleware } from "./core/middleware/rate-limit.middleware.js";
 import { errorMiddleware } from "./core/middleware/error.middleware.js";
 import { setupSwagger } from "./docs/swagger.js";
@@ -19,6 +20,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(requestIdMiddleware);
+app.use(accessLogMiddleware);
 app.use(rateLimitMiddleware);
 
 setupSwagger(app);

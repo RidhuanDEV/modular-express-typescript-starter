@@ -1,70 +1,101 @@
 import type { Request, Response, NextFunction } from "express";
 import { UserService } from "./user.service.js";
-import { searchUserSchema } from "./user.schema.js";
 import {
   requireAuthenticatedUser,
   requireRouteParam,
 } from "../../core/http/request-context.js";
-import {
-  sendSuccess,
-  sendCreated,
-  sendNoContent,
-} from "../../utils/response.js";
+import { sendSuccess, sendCreated, sendNoContent } from "../../utils/response.js";
+import type { SearchUserDto } from "./dto/search-user.dto.js";
+import type { CreateUserDto } from "./dto/create-user.dto.js";
+import type { UpdateUserDto } from "./dto/update-user.dto.js";
 
 const service = new UserService();
 
 export class UserController {
-  async findAll(req: Request, res: Response, next: NextFunction) {
+  getAll = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const query = searchUserSchema.parse(req.query);
+      const pageVal = req.query["page"];
+      const limitVal = req.query["limit"];
+      const sortByVal = req.query["sortBy"];
+      const orderByVal = req.query["orderBy"];
+      const searchVal = req.query["search"];
+      const fieldsVal = req.query["fields"];
+
+      const query: SearchUserDto = {
+        page: typeof pageVal === "number" ? pageVal : Number(pageVal) || 1,
+        limit: typeof limitVal === "number" ? limitVal : Number(limitVal) || 10,
+        sortBy: typeof sortByVal === "string" ? sortByVal : undefined,
+        orderBy: orderByVal === "desc" ? "desc" : "asc",
+        search: typeof searchVal === "string" ? searchVal : undefined,
+        fields: typeof fieldsVal === "string" ? fieldsVal : undefined,
+      };
+
       const result = await service.findAll(query);
-      sendSuccess(res, result);
-    } catch (err) {
-      next(err);
+      sendSuccess(res, {
+        data: result.data,
+        meta: result.meta,
+      });
+    } catch (error) {
+      next(error);
     }
-  }
+  };
 
-  async findById(req: Request, res: Response, next: NextFunction) {
+  getById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const data = await service.findById(requireRouteParam(req, "id"));
-      sendSuccess(res, { data });
-    } catch (err) {
-      next(err);
+      const id = requireRouteParam(req, "id");
+      const result = await service.findById(id);
+      sendSuccess(res, { data: result });
+    } catch (error) {
+      next(error);
     }
-  }
+  };
 
-  async create(req: Request, res: Response, next: NextFunction) {
-    try {
-      const user = requireAuthenticatedUser(req);
-      const data = await service.create(req.body, user, req.requestId);
-      sendCreated(res, data);
-    } catch (err) {
-      next(err);
-    }
-  }
-
-  async update(req: Request, res: Response, next: NextFunction) {
+  create = async (
+    req: Request<Record<string, string>, any, CreateUserDto>,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
     try {
       const user = requireAuthenticatedUser(req);
-      const data = await service.update(
-        requireRouteParam(req, "id"),
-        req.body,
-        user,
-        req.requestId,
-      );
-      sendSuccess(res, { data });
-    } catch (err) {
-      next(err);
-    }
-  }
+      const requestId = req.headers["x-request-id"];
+      const reqIdStr = typeof requestId === "string" ? requestId : undefined;
 
-  async delete(req: Request, res: Response, next: NextFunction) {
+      const result = await service.create(req.body, user, reqIdStr);
+      sendCreated(res, result);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  update = async (
+    req: Request<{ id: string }, any, UpdateUserDto>,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
     try {
+      const id = requireRouteParam(req, "id");
       const user = requireAuthenticatedUser(req);
-      await service.delete(requireRouteParam(req, "id"), user, req.requestId);
+      const requestId = req.headers["x-request-id"];
+      const reqIdStr = typeof requestId === "string" ? requestId : undefined;
+
+      const result = await service.update(id, req.body, user, reqIdStr);
+      sendSuccess(res, { data: result });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  delete = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const id = requireRouteParam(req, "id");
+      const user = requireAuthenticatedUser(req);
+      const requestId = req.headers["x-request-id"];
+      const reqIdStr = typeof requestId === "string" ? requestId : undefined;
+
+      await service.delete(id, user, reqIdStr);
       sendNoContent(res);
-    } catch (err) {
-      next(err);
+    } catch (error) {
+      next(error);
     }
-  }
+  };
 }

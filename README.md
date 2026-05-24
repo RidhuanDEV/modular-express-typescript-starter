@@ -130,12 +130,51 @@ The project ships with several core modules already implemented:
 - `user`: User account management
 - `roles` & `permissions`: Granular RBAC system
 
-To generate a new module:
+To bootstrap a new feature module in seconds:
 ```bash
 npm run make:crud <feature-name>
 ```
 
-> The generator creates the module structure, migration file, and updates global constants for permissions and audit logs.
+The CLI generator automatically creates a complete, type-safe feature structure:
+1. **Model** (`<feature>.model.ts`): Configured with paranoid soft-deletion and standard hooks.
+2. **Schema** (`<feature>.schema.ts`): Zod schemas for validating client payloads.
+3. **DTOs** (`dto/*.ts`): Strict request/response types.
+4. **Repository** (`<feature>.repository.ts`): Isolated data access interface.
+5. **Service** (`<feature>.service.ts`): Orchestrates transactions, cache invalidation, and audit logging.
+6. **Controller** (`<feature>.controller.ts`): Handles HTTP routing using generic Express `Request` types without typecasting.
+7. **Routes** (`<feature>.routes.ts`): Direct route mapping using arrow functions (no `.bind()`).
+8. **Policy** (`policies/<feature>.policy.ts`): Fine-grained resource-level ownership controls.
+9. **Query** (`queries/<feature>.query.ts`): Allowlist-driven query builder settings (safely preventing index-misses).
+10. **Mapper** (`mappers/<feature>.mapper.ts`): Decouples database entities from HTTP response contracts.
+11. **Migration & Seeder**: Generates standard DB schemas and RBAC permissions.
+
+---
+
+## 🧩 Architectural Decision Records & Edge Cases
+
+When expanding the starter, follow these strict guidelines to maintain codebase health:
+
+### 1. Edge Case: Adding New Actions/Operations in the Same Module
+* **Problem**: You need to add a specialized action that doesn't fit standard CRUD (e.g., `/users/:id/suspend` or `/users/:id/reset-password`).
+* **Solution**: **Do NOT create a separate module.** Keep it encapsulated within the existing module:
+  * **Schema**: Add a `suspendUserSchema` or `resetPasswordSchema` inside `user.schema.ts`.
+  * **Controller**: Add an arrow-function method `suspend = async (req: Request, res: Response, next: NextFunction): Promise<void> => { ... }`.
+  * **Service**: Implement `suspend(id, reason, user, requestId)` wrapping the state change and audit log inside a transaction.
+  * **Routes**: Register `router.put('/:id/suspend', authenticate, requirePermission(USER_PERMISSIONS.UPDATE), validate({ body: suspendUserSchema }), controller.suspend)`.
+
+### 2. Edge Case: Cross-Module Orchestration (Multi-Entity Operations)
+* **Problem**: Creating a resource in Module A must automatically trigger actions or writes in Module B (e.g., registering a User requires creating a Billing Profile, writing to Audit Logs, and sending a welcome email).
+* **Solution**:
+  * Keep the **Controller clean**. The controller must only invoke the primary module's service.
+  * **Orchestrate inside the Service**: The primary service (e.g., `UserService`) should import the secondary services/repositories and execute them inside its transaction.
+  * **Asynchronous Offloading**: For non-blocking operations like sending emails or notifying external APIs, offload them to background jobs (using `src/core/queue/`) after the transaction successfully commits.
+
+### 3. Edge Case: Custom Complex DB Queries
+* **Problem**: A query needs complex aggregations or multi-table joins that are difficult or slow to model in Sequelize.
+* **Solution**:
+  * Add a custom method inside `<feature>.repository.ts`.
+  * Write raw SQL queries using `sequelize.query(...)` rather than forcing Sequelize's ORM helper functions.
+  * Ensure the output is mapped back to a predictable structure inside `<feature>.mapper.ts` to maintain a stable API contract.
 
 ## 🚢 Deployment
 

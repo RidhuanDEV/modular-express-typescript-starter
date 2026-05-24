@@ -1,6 +1,7 @@
 import type { JwtUserPayload } from "../../../types/index.js";
 import type { User } from "../user.model.js";
 import { HttpError } from "../../../core/errors/http-error.js";
+import { Role } from "../../roles/role.model.js";
 
 /**
  * Resource-level authorization policy for User.
@@ -24,8 +25,17 @@ export class UserPolicy {
     // Example: throw HttpError.forbidden('...') when user cannot update.
   }
 
-  canDelete(_user: JwtUserPayload, _resource: User): void {
-    // Example: throw HttpError.forbidden('...') when user cannot delete.
+  async canDelete(user: JwtUserPayload, resource: User): Promise<void> {
+    // 1. Avoid self-deletion (for both Admin and standard Users)
+    if (user.id === resource.id) {
+      throw HttpError.forbidden("You cannot delete your own account.");
+    }
+
+    // 2. Ensure only administrators are allowed to delete users
+    const requesterRole = await Role.findByPk(user.roleId);
+    if (!requesterRole || requesterRole.name !== "admin") {
+      throw HttpError.forbidden("Only administrators are allowed to delete user accounts.");
+    }
   }
 }
 

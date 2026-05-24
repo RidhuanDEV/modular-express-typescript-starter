@@ -13,16 +13,27 @@ import { USER_MODULE } from "../../constants/modules.constants.js";
 import type { CreateUserDto } from "./dto/create-user.dto.js";
 import type { UpdateUserDto } from "./dto/update-user.dto.js";
 import type { SearchUserDto } from "./dto/search-user.dto.js";
-import type { JwtUserPayload } from "../../types/index.js";
+import type {
+  JwtUserPayload,
+  PaginationMeta,
+} from "../../types/index.js";
+import type {
+  UserResponseDto,
+  UserResponseProjection,
+} from "./dto/user-response.dto.js";
 
 const repository = new UserRepository();
 const CACHE_PREFIX = USER_MODULE;
 
 export class UserService {
-  async findAll(query: SearchUserDto) {
+  async findAll(
+    query: SearchUserDto,
+  ): Promise<{ data: UserResponseProjection[]; meta: PaginationMeta }> {
     const cacheKey = `${CACHE_PREFIX}:list:${JSON.stringify(query)}`;
-    const cached = await cacheService.get(cacheKey);
-    if (cached) return cached;
+    const cached = await cacheService.get<any>(cacheKey);
+    if (cached) {
+      return cached as { data: UserResponseProjection[]; meta: PaginationMeta };
+    }
 
     const findOptions = buildFindOptions(query, userQueryConfig);
     const { rows, count } = await repository.findAll(findOptions);
@@ -37,9 +48,9 @@ export class UserService {
     return result;
   }
 
-  async findById(id: string) {
+  async findById(id: string): Promise<UserResponseDto> {
     const cacheKey = `${CACHE_PREFIX}:${id}`;
-    const cached = await cacheService.get(cacheKey);
+    const cached = await cacheService.get<UserResponseDto>(cacheKey);
     if (cached) return cached;
 
     const record = await repository.findById(id);
@@ -50,11 +61,11 @@ export class UserService {
     return response;
   }
 
-  /**
-   * Transaction wraps both the INSERT and the audit write so they succeed
-   * or roll back together. Cache is busted only after successful commit.
-   */
-  async create(data: CreateUserDto, user: JwtUserPayload, requestId?: string) {
+  async create(
+    data: CreateUserDto,
+    user: JwtUserPayload,
+    requestId?: string,
+  ): Promise<UserResponseDto> {
     userPolicy.canCreate(user);
 
     const record = await sequelize.transaction(async (trx) => {
@@ -71,22 +82,16 @@ export class UserService {
       return created;
     });
 
-    // Side effects after successful commit
     await cacheService.invalidatePattern(`${CACHE_PREFIX}:list:*`);
     return toUserResponse(record);
   }
 
-  /**
-   * Reads the existing record before the transaction for policy check and
-   * before-snapshot. The transaction boundary covers only the mutation and
-   * audit write, keeping the lock window as small as possible.
-   */
   async update(
     id: string,
     data: UpdateUserDto,
     user: JwtUserPayload,
     requestId?: string,
-  ) {
+  ): Promise<UserResponseDto> {
     const existing = await repository.findById(id);
     if (!existing) throw HttpError.notFound("User not found");
     userPolicy.canUpdate(user, existing);
@@ -107,19 +112,15 @@ export class UserService {
       return updated;
     });
 
-    // Side effects after successful commit
     await cacheService.del(`${CACHE_PREFIX}:${id}`);
     await cacheService.invalidatePattern(`${CACHE_PREFIX}:list:*`);
     return toUserResponse(record);
   }
 
-  /**
-   * Soft or hard delete depends on the repo implementation.
-   */
-  async delete(id: string, user: JwtUserPayload, requestId?: string) {
+  async delete(id: string, user: JwtUserPayload, requestId?: string): Promise<void> {
     const existing = await repository.findById(id);
     if (!existing) throw HttpError.notFound("User not found");
-    userPolicy.canDelete(user, existing);
+    await userPolicy.canDelete(user, existing);
 
     await sequelize.transaction(async (trx) => {
       await repository.delete(id, trx);
@@ -134,7 +135,6 @@ export class UserService {
       });
     });
 
-    // Side effects after successful commit
     await cacheService.del(`${CACHE_PREFIX}:${id}`);
     await cacheService.invalidatePattern(`${CACHE_PREFIX}:list:*`);
   }

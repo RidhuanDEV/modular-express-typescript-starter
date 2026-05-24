@@ -637,61 +637,99 @@ function genController(name: string): string {
   const pascal = pascalCase(name);
   return `import type { Request, Response, NextFunction } from 'express';
 import { ${pascal}Service } from './${name}.service.js';
-import { search${pascal}Schema } from './${name}.schema.js';
 import { requireAuthenticatedUser, requireRouteParam } from '../../core/http/request-context.js';
 import { sendSuccess, sendCreated, sendNoContent } from '../../utils/response.js';
+import type { Create${pascal}Dto } from './dto/create-${name}.dto.js';
+import type { Update${pascal}Dto } from './dto/update-${name}.dto.js';
+import type { Search${pascal}Dto } from './dto/search-${name}.dto.js';
 
 const service = new ${pascal}Service();
 
 export class ${pascal}Controller {
-  async findAll(req: Request, res: Response, next: NextFunction) {
+  getAll = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
     try {
-      const query = search${pascal}Schema.parse(req.query);
+      const pageVal = req.query.page;
+      const limitVal = req.query.limit;
+      const sortByVal = req.query.sortBy;
+      const orderByVal = req.query.orderBy;
+      const searchVal = req.query.search;
+      const fieldsVal = req.query.fields;
+
+      const query: Search${pascal}Dto = {
+        page: typeof pageVal === 'number' ? pageVal : Number(pageVal) || 1,
+        limit: typeof limitVal === 'number' ? limitVal : Number(limitVal) || 10,
+        sortBy: typeof sortByVal === 'string' ? sortByVal : undefined,
+        orderBy: orderByVal === 'desc' ? 'desc' : 'asc',
+        search: typeof searchVal === 'string' ? searchVal : undefined,
+        fields: typeof fieldsVal === 'string' ? fieldsVal : undefined,
+      };
+
       const result = await service.findAll(query);
       sendSuccess(res, result);
     } catch (err) {
       next(err);
     }
-  }
+  };
 
-  async findById(req: Request, res: Response, next: NextFunction) {
+  getById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const data = await service.findById(requireRouteParam(req, 'id'));
       sendSuccess(res, { data });
     } catch (err) {
       next(err);
     }
-  }
+  };
 
-  async create(req: Request, res: Response, next: NextFunction) {
+  create = async (
+    req: Request<Record<string, string>, any, Create${pascal}Dto>,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
     try {
       const user = requireAuthenticatedUser(req);
-      const data = await service.create(req.body, user, req.requestId);
+      const requestId = req.headers['x-request-id'];
+      const reqIdStr = typeof requestId === 'string' ? requestId : undefined;
+
+      const data = await service.create(req.body, user, reqIdStr);
       sendCreated(res, data);
     } catch (err) {
       next(err);
     }
-  }
+  };
 
-  async update(req: Request, res: Response, next: NextFunction) {
+  update = async (
+    req: Request<{ id: string }, any, Update${pascal}Dto>,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
     try {
       const user = requireAuthenticatedUser(req);
-      const data = await service.update(requireRouteParam(req, 'id'), req.body, user, req.requestId);
+      const requestId = req.headers['x-request-id'];
+      const reqIdStr = typeof requestId === 'string' ? requestId : undefined;
+
+      const data = await service.update(requireRouteParam(req, 'id'), req.body, user, reqIdStr);
       sendSuccess(res, { data });
     } catch (err) {
       next(err);
     }
-  }
+  };
 
-  async delete(req: Request, res: Response, next: NextFunction) {
+  delete = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const user = requireAuthenticatedUser(req);
-      await service.delete(requireRouteParam(req, 'id'), user, req.requestId);
+      const requestId = req.headers['x-request-id'];
+      const reqIdStr = typeof requestId === 'string' ? requestId : undefined;
+
+      await service.delete(requireRouteParam(req, 'id'), user, reqIdStr);
       sendNoContent(res);
     } catch (err) {
       next(err);
     }
-  }
+  };
 }
 `;
 }
@@ -742,7 +780,7 @@ const controller = new ${pascal}Controller();
  *       200:
  *         description: Paginated list
  */
-router.get('/', authenticate, requirePermission(${permissionConst}.VIEW), validate({ query: search${pascal}Schema }), controller.findAll.bind(controller));
+router.get('/', authenticate, requirePermission(${permissionConst}.VIEW), validate({ query: search${pascal}Schema }), controller.getAll);
 
 /**
  * @openapi
@@ -768,7 +806,7 @@ router.get(
   authenticate,
   requirePermission(${permissionConst}.VIEW),
   validate({ params: ${camelCase(name)}IdSchema }),
-  controller.findById.bind(controller),
+  controller.getById,
 );
 
 /**
@@ -794,7 +832,7 @@ router.post(
   authenticate,
   requirePermission(${permissionConst}.CREATE),
   validate({ body: create${pascal}Schema }),
-  controller.create.bind(controller),
+  controller.create,
 );
 
 /**
@@ -827,7 +865,7 @@ router.put(
   authenticate,
   requirePermission(${permissionConst}.UPDATE),
   validate({ params: ${camelCase(name)}IdSchema, body: update${pascal}Schema }),
-  controller.update.bind(controller),
+  controller.update,
 );
 
 /**
@@ -854,7 +892,7 @@ router.delete(
   authenticate,
   requirePermission(${permissionConst}.DELETE),
   validate({ params: ${camelCase(name)}IdSchema }),
-  controller.delete.bind(controller),
+  controller.delete,
 );
 
 export const path = '/${plural}';
@@ -912,8 +950,7 @@ export async function down(queryInterface: QueryInterface): Promise<void> {
 function genPermissionSeeder(name: string): string {
   const permissionConst = permissionConstantName(name);
   return `import type { QueryInterface, QueryOptions } from 'sequelize';
-import crypto from 'node:crypto';
-import { ${permissionConst} } from '../../constants/permissions.constants.js';
+const { ${permissionConst} } = require('../../constants/permissions.constants.js');
 
 interface BulkInsertOptions extends QueryOptions {
   ignoreDuplicates?: boolean;
@@ -921,52 +958,56 @@ interface BulkInsertOptions extends QueryOptions {
 
 const PERMISSIONS: string[] = Object.values(${permissionConst});
 
-export async function up(queryInterface: QueryInterface): Promise<void> {
-  const now = new Date();
+const seeder = {
+  async up(queryInterface: QueryInterface): Promise<void> {
+    const now = new Date();
 
-  // 1. Insert permissions (skip duplicates)
-  const permissionRows = PERMISSIONS.map((pname) => ({
-    id: crypto.randomUUID(),
-    name: pname,
-    created_at: now,
-    updated_at: now,
-  }));
+    // 1. Insert permissions (skip duplicates)
+    const permissionRows = PERMISSIONS.map((pname) => ({
+      id: globalThis.crypto.randomUUID(),
+      name: pname,
+      created_at: now,
+      updated_at: now,
+    }));
 
-  const insertOpts: BulkInsertOptions = { ignoreDuplicates: true };
-  await queryInterface.bulkInsert('permissions', permissionRows, insertOpts);
+    const insertOpts: BulkInsertOptions = { ignoreDuplicates: true };
+    await queryInterface.bulkInsert('permissions', permissionRows, insertOpts);
 
-  // 2. Find admin role
-  const [adminRoles] = await queryInterface.sequelize.query(
-    \`SELECT id FROM roles WHERE name = 'admin' LIMIT 1\`,
-  );
-  const adminRole = (adminRoles as Array<{ id: string }>)[0];
-  if (!adminRole) {
-    console.warn('Seeder: admin role not found — skipping role_permissions insert');
-    return;
+    // 2. Find admin role
+    const [adminRoles] = await queryInterface.sequelize.query(
+      \`SELECT id FROM roles WHERE name = 'admin' LIMIT 1\`,
+    );
+    const adminRole = (adminRoles as Array<{ id: string }>)[0];
+    if (!adminRole) {
+      console.warn('Seeder: admin role not found — skipping role_permissions insert');
+      return;
+    }
+
+    // 3. Re-fetch inserted permission ids (handles pre-existing rows)
+    const placeholders = PERMISSIONS.map(() => '?').join(', ');
+    const [rows] = await queryInterface.sequelize.query(
+      \`SELECT id FROM permissions WHERE name IN (\${placeholders})\`,
+      { replacements: PERMISSIONS },
+    );
+
+    const rolePermRows = (rows as Array<{ id: string }>).map((p) => ({
+      role_id: adminRole.id,
+      permission_id: p.id,
+    }));
+
+    await queryInterface.bulkInsert('role_permissions', rolePermRows, insertOpts);
+  },
+
+  async down(queryInterface: QueryInterface): Promise<void> {
+    const placeholders = PERMISSIONS.map(() => '?').join(', ');
+    await queryInterface.sequelize.query(
+      \`DELETE FROM permissions WHERE name IN (\${placeholders})\`,
+      { replacements: PERMISSIONS },
+    );
   }
+};
 
-  // 3. Re-fetch inserted permission ids (handles pre-existing rows)
-  const placeholders = PERMISSIONS.map(() => '?').join(', ');
-  const [rows] = await queryInterface.sequelize.query(
-    \`SELECT id FROM permissions WHERE name IN (\${placeholders})\`,
-    { replacements: PERMISSIONS },
-  );
-
-  const rolePermRows = (rows as Array<{ id: string }>).map((p) => ({
-    role_id: adminRole.id,
-    permission_id: p.id,
-  }));
-
-  await queryInterface.bulkInsert('role_permissions', rolePermRows, insertOpts);
-}
-
-export async function down(queryInterface: QueryInterface): Promise<void> {
-  const placeholders = PERMISSIONS.map(() => '?').join(', ');
-  await queryInterface.sequelize.query(
-    \`DELETE FROM permissions WHERE name IN (\${placeholders})\`,
-    { replacements: PERMISSIONS },
-  );
-}
+export = seeder;
 `;
 }
 
@@ -994,7 +1035,11 @@ interface PostmanCollection {
 
 function getOrCreateCollection(): PostmanCollection {
   if (fs.existsSync(POSTMAN)) {
-    return JSON.parse(fs.readFileSync(POSTMAN, "utf-8")) as PostmanCollection;
+    let content = fs.readFileSync(POSTMAN, "utf-8");
+    if (content.startsWith("\ufeff")) {
+      content = content.slice(1);
+    }
+    return JSON.parse(content) as PostmanCollection;
   }
   return {
     info: {

@@ -6,29 +6,37 @@ import { sendSuccess, sendCreated } from "../../utils/response.js";
 const service = new AuthService();
 
 export class AuthController {
-  async register(
+  register = async (
     req: Request,
     res: Response,
     next: NextFunction,
-  ): Promise<void> {
+  ): Promise<void> => {
     try {
       const user = await service.register(req.body);
       sendCreated(res, user);
     } catch (err) {
       next(err);
     }
-  }
+  };
 
-  async login(req: Request, res: Response, next: NextFunction): Promise<void> {
+  login = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
     try {
       const result = await service.login(req.body);
       sendSuccess(res, { data: result });
     } catch (err) {
       next(err);
     }
-  }
+  };
 
-  async me(req: Request, res: Response, next: NextFunction): Promise<void> {
+  me = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
     try {
       const authUser = requireAuthenticatedUser(req);
       const user = await service.me(authUser.id);
@@ -36,5 +44,5 @@ export class AuthController {
     } catch (err) {
       next(err);
     }
-  }
+  };
 }

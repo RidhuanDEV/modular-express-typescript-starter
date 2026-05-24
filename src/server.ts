@@ -6,8 +6,19 @@ import { loadModels } from "./database/models/index.js";
 import { closeQueues } from "./core/queue/queue.service.js";
 import { logger } from "./core/logger/logger.js";
 
+// Global process exception and unhandled rejection event boundaries
+process.on("uncaughtException", (err: Error) => {
+  logger.fatal({ err }, "Uncaught Exception detected — shutting down process");
+  process.exit(1);
+});
+
+process.on("unhandledRejection", (reason: unknown) => {
+  logger.fatal({ reason }, "Unhandled Rejection detected — shutting down process");
+  process.exit(1);
+});
+
 async function bootstrap(): Promise<void> {
-  await loadModels();
+  await loadModels(sequelize);
 
   await sequelize.authenticate();
   logger.info("Database connected");
