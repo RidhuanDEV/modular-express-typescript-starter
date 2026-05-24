@@ -187,7 +187,47 @@ When expanding the starter, follow these strict guidelines to maintain codebase 
    npm start
    ```
 
-## 📜 Documentation
+## 📜 API Documentation & OpenAPI Swagger
 
-- **Swagger UI**: Access `/docs` after starting the server.
-- **Health Check**: Available at `/health`.
+The project features fully automated API documentation using **Swagger / OpenAPI 3.0**. 
+
+### 1. How to View
+* **Swagger UI Interactive Interface**: Access `http://localhost:3000/docs` in your browser when the server is running.
+* **JSON Definition**: Access `http://localhost:3000/docs.json` to export the raw OpenAPI specification.
+
+### 2. How to Add Docs Automatically
+The documentation engine (`src/docs/swagger.ts`) automatically scans all routes files under feature modules: `src/modules/**/*.routes.ts`. 
+
+To document a new route, simply write standard **YAML OpenAPI annotations** directly inside a JSDoc block in your route file:
+
+```typescript
+/**
+ * @openapi
+ * /products/{id}:
+ *   get:
+ *     tags: [Product]
+ *     summary: Retrieve a single product by UUID
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     responses:
+ *       200:
+ *         description: Successfully fetched product details
+ *       404:
+ *         description: Product not found
+ */
+router.get('/:id', authenticate, controller.getById);
+```
+
+As soon as you restart the development server (`npm run dev`), the new endpoint, parameters, authentication scopes, and response schemas will instantly appear in the **Swagger UI** under the `/docs` page!
+
+---
+
+## 🏥 Health Check
+* The health check endpoint is available at `/health` to verify server, database, and cache connectivity.
